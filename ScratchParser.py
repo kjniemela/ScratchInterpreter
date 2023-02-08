@@ -42,6 +42,9 @@ data = json.loads(f.read())
 #headless = True
 doStdinEvents = True
 
+import os
+# os.environ["SDL_VIDEODRIVER"] = "dummy"
+
 if not headless:
     import pygame
 
@@ -72,6 +75,13 @@ class Project:
 ##                self.vars.append(Variable(monitor, self))
 ##            elif monitor['opcode'] == 'data_listcontents':
 ##                self.vars.append(List(monitor, self))
+    def print(self):
+        # print('Variables:')
+        # for var in self.vars:
+        #     print(f"  {var}: {self.vars[var]}")
+        print('\nSprites:')
+        for sprite in self.sprites:
+            sprite.print()
     def trigger_event(self, event):
         for sprite in self.sprites:
             sprite.trigger_event(event)
@@ -92,8 +102,8 @@ class Project:
     def get_recievers_by_message(self, message):
         return self.message_recievers[message]
     def step(self):
-        #print("###STEP###")
-        #print(self.callstack)
+        # print("###STEP###")
+        # print(self.callstack)
         if len(self.callstack) > 0:
             for i in range(len(self.callstack)):
                 self.callstack[0][0].do_run(self.callstack[0][1])
@@ -101,7 +111,7 @@ class Project:
         if len(self.waitstack) > 0:
             for block, context, t in self.waitstack:
                 if time() > t:
-                    #print(self.waitstack)
+                    # print(self.waitstack)
                     block.do_run(context)
                     del self.waitstack[self.waitstack.index([block, context, t])]
                     
@@ -146,14 +156,15 @@ class Costume:
     def __init__(self, sprite, data):
         self.sprite = sprite
         self.data = data
-        #print(data)
+        print(data)
         self.path = self.sprite.project.path + data['assetId'] + "." + data['dataFormat']
         if data['dataFormat'] == 'png':
             self.image = pygame.image.load(self.path)
         elif data['dataFormat'] == 'svg':
-            self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
+            # self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
+            self.image = pygame.image.load('Scratch Project/7d1c7101d1bca69a8dfc608aa2683c52.png')
     def apply_costume(self):
-        #print(self.path)
+        print(self.path)
         self.sprite.lastDir = 90
         self.sprite.spriteObject.image = self.image
         self.sprite.spriteObject.rect = self.sprite.spriteObject.image.get_rect(center=(240, 180))
@@ -246,6 +257,13 @@ class Sprite:
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(self.direction-90))
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.spriteObject.image, self.spriteObject.rect, self.scale)
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
+    def print(self):
+        print(f"  {self.name}")
+        print(f"  Blocks:")
+        for block in self.blocks:
+            if block.parent == None:
+                block.print(indent=2)
+                print()
     def set_costume(self, costume):
         costume.apply_costume()
         self.costume = costume
@@ -269,9 +287,33 @@ class Sprite:
             if block.opcode == "event_" + event:
                 block.do_run(self.defaultContext)
     def touching(self, other):
-        #print(self, other)
-        #print(self.spriteObject.mask.overlap(other.spriteObject.mask, (int(abs(self.x-other.x)), int(abs(self.y-other.y)))))
+        print(self, other)
+        print(self.spriteObject.mask.overlap(other.spriteObject.mask, (int(abs(self.x-other.x)), int(abs(self.y-other.y)))))
         return not self.spriteObject.mask.overlap(other.spriteObject.mask, (int(abs(self.x-other.x)), int(abs(self.y-other.y)))) == None
+    def touching_edge(self):
+        # TODO - actually make this
+        return not (-240 <= self.x <= 240 and -180 <= self.y <= 180)
+    def bounce_on_edge(self):
+        # TODO - actually make this
+        touch_top = self.y > 180
+        touch_left = self.x < -240
+        touch_right = self.x > 240
+        touch_bottom = self.y < -180
+
+        radians = math.radians(90 - self.direction)
+        dx = math.cos(radians)
+        dy = -math.sin(radians)
+        if touch_left:
+            dx = max(0.2, abs(dx))
+        elif touch_top:
+            dy = max(0.2, abs(dy))
+        elif touch_right:
+            dx = 0 - max(0.2, abs(dx))
+        elif touch_bottom:
+            dy = 0 - max(0.2, abs(dy))
+
+        self.direction = math.degrees(math.atan2(dy, dx)) + 90
+
     def draw(self, screen):
         if not self.direction == self.lastDir:
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(self.direction-90))
@@ -307,17 +349,29 @@ class Block:
         self.inputs = inputs
         self.fields = fields
         self.data = data
-        self.loopcount = 0
+        self.loopcount = -1
         self.context = defaultContext
         if self.opcode == 'procedures_prototype':
             self.sprite.add_proc(self.data['mutation']['proccode'], self.data['parent'], json.loads(self.data['mutation']['argumentnames']))
     def __repr__(self):
-        return "Block: " + self.opcode
+        return self.ID
+        return f"Block: {self.opcode} ({self.ID})"
+    def print(self, indent=0):
+        child = self.sprite.get_block_by_ID(self.child)
+        substack = None
+        if 'SUBSTACK' in self.inputs:
+            substack = self.sprite.get_block_by_ID(self.inputs['SUBSTACK'][1])
+
+        print(f"{'  '*indent}{self.opcode} ({self.ID})")
+        if substack is not None:
+            substack.print(indent=indent+1)
+        if child is not None:
+            child.print(indent=indent)
     def eval_inputs(self, context):
         inputs = {}
-        #print(self.inputs, self.fields, self)
+        # print(self, self.inputs, self.fields)
         for i in self.inputs:
-            #print(i, self.inputs[i])
+            # print(i, self.inputs[i])
             if self.inputs[i][0] == 1:
                 if self.inputs[i][1] == None:
                     inputs[i] = None
@@ -333,21 +387,31 @@ class Block:
                     inputs[i] = self.sprite.project.get_var_by_ID(self.inputs[i][1][2]).value
                 else:
                     inputs[i] = self.sprite.get_block_by_ID(self.inputs[i][1]).do_run(context)
-        for i in self.fields:
-            #print(i, self.fields[i])
-            if len(self.fields[i]) > 1:
-                inputs[i] = self.fields[i][1]
+        for field in self.fields:
+            # TODO - clean this mess up!
+            if field == 'BROADCAST_OPTION':
+                inputs[field] = self.fields[field][1]
+            elif field == 'VARIABLE':
+                inputs[field] = self.fields[field][1]
+            elif len(self.fields[field]) > 1 and type(self.fields[field][0]) == int:
+                inputs[field] = self.fields[field][1]
             else:
-                inputs[i] = self.fields[i][0]
+                inputs[field] = self.fields[field][0]
         return inputs
     def run(self, context):
-        self.loopcount = 0
+        self.loopcount = -1
         self.sprite.project.callstack.append([self, context])
-        #print(self.sprite.project.callstack)
+        # print(self.sprite.project.callstack)
     def do_run(self, context):
         child = self.sprite.get_block_by_ID(self.child)
         inputs = self.eval_inputs(context)
-        #print(self.opcode, ' - ', inputs, ' - ', child, ' - ', self.sprite)
+        # print(self.ID, ' - ', self.opcode, ' - ', inputs, ' - ', child, ' - ', self.sprite,
+        # ' - ', None if context.return_block is None else context.return_block.ID)
+        # if self.sprite.project.headless:
+        #     input()
+        # else:
+        #     pygame.event.wait()
+        
         
         if self.opcode == 'operator_divide':
             try:
@@ -361,7 +425,7 @@ class Block:
         elif self.opcode == 'operator_add':
             return number(inputs['NUM1']) + number(inputs['NUM2'])
         elif self.opcode == 'operator_round':
-            return number(float(inputs['NUM']))
+            return number(round(float(inputs['NUM'])))
         elif self.opcode == 'operator_mathop':
             if inputs['OPERATOR'] == 'sin':
                 return sin(number(inputs['NUM']))
@@ -401,13 +465,19 @@ class Block:
                 keys = pygame.key.get_pressed()
                 pressed_keys = []
                 for key in range(len(keys)):
-                    if keys[key] == 1:
-                        pressed_keys.append(pygame.key.name(key).replace('up', 'up arrow').replace('down', 'down arrow').replace('right', 'right arrow').replace('left', 'left arrow'))
-                #print(pressed_keys, self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0])
+                    if keys[key]:
+                        pressed_keys.append(pygame.key.name(key))
+                if keys[pygame.K_UP]: pressed_keys.append('up arrow')
+                if keys[pygame.K_DOWN]: pressed_keys.append('down arrow')
+                if keys[pygame.K_LEFT]: pressed_keys.append('left arrow')
+                if keys[pygame.K_RIGHT]: pressed_keys.append('right arrow')
+                # if len(pressed_keys) > 0:
+                #     print(pressed_keys, self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0])
                 return self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0] in pressed_keys
         elif self.opcode == 'sensing_askandwait':
             if not inputs['QUESTION'] == "":
                 sys.stdout.write(inputs['QUESTION'])
+                sys.stdout.flush()
             self.sprite.project.answer = sys.stdin.readline().replace('\n', '')
             if not child == None:
                 child.run(context)
@@ -419,6 +489,8 @@ class Block:
             return self.sprite.get_block_by_ID(inputs['TOUCHINGOBJECTMENU']).do_run(context)
         elif self.opcode == 'sensing_touchingobjectmenu':
             if inputs['TOUCHINGOBJECTMENU'] == '_edge_':
+                return self.sprite.touching_edge()
+            elif inputs['TOUCHINGOBJECTMENU'] is None:
                 return False
             else:
                 return self.sprite.touching(self.sprite.project.get_sprite_by_name(inputs['TOUCHINGOBJECTMENU']))
@@ -456,14 +528,14 @@ class Block:
                 child.do_run(context)
         elif self.opcode == 'motion_changexby':
             self.sprite.x += number(inputs['DX'])
-            #print("X += %s" % (inputs['DX']))
+            # print("X += %s" % (inputs['DX']))
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_changeyby':
             self.sprite.y += number(inputs['DY'])
+            # print("Y += %s" % (inputs['DY']))
             if not child == None:
                 child.do_run(context)
-            #print("Y += %s" % (inputs['DY']))
         elif self.opcode == 'motion_movesteps':
             self.sprite.x += number(inputs['STEPS'])*sin(self.sprite.direction)
             self.sprite.y += number(inputs['STEPS'])*cos(self.sprite.direction)
@@ -485,9 +557,13 @@ class Block:
             return self.sprite.x
         elif self.opcode == 'motion_yposition':
             return self.sprite.y
+        elif self.opcode == 'motion_ifonedgebounce':
+            self.sprite.bounce_on_edge()
+            if not child == None:
+                child.do_run(context)
 
         elif self.opcode == 'data_setvariableto':
-            #print("SET VAR %s TO %s" % (self.sprite.project.get_var_by_ID(inputs['VARIABLE']), inputs['VALUE']))
+            # print("SET VAR %s TO %s" % (self.sprite.project.get_var_by_ID(inputs['VARIABLE']), inputs['VALUE']))
             self.sprite.project.get_var_by_ID(inputs['VARIABLE']).value = inputs['VALUE']
             if not child == None:
                 child.do_run(context)
@@ -537,38 +613,22 @@ class Block:
             self.sprite.project.waitstack.append([self.sprite.get_block_by_ID(self.child), context, time()+float(inputs['DURATION'])])
         elif self.opcode == 'control_repeat':
             if 'SUBSTACK' in inputs:
-                if self.loopcount == 0:
+                if self.loopcount == -1:
                     self.loopcount = int(inputs['TIMES'])
-                #print("LOOP COUNT:", self.loopcount)
-                if self.loopcount > 1:
+                # print("LOOP COUNT:", self.loopcount, self)
+                if self.loopcount > 0:
                     if not inputs['SUBSTACK'] == None:
                         c = context.clone(self)
                         inputs['SUBSTACK'].do_run(c)
                         self.loopcount -= 1
+                        return
                     else:
                         if not child == None:
                             child.run(context)
-                    #self.sprite.project.callstack.append([self, context])
                 else:
-                    if not inputs['SUBSTACK'] == None:
-                        if child == None:
-                            c = context.clone(context.return_block)
-                        else:
-                            c = context.clone(child)
-                        inputs['SUBSTACK'].do_run(c)
-                        self.loopcount -= 1
-                    else:
-                        if not child == None:
-                            child.run(context)
-                    #if not child == None:
-                        #child.run(context)
-                        
-                    
-##                for i in range(int(inputs['TIMES'])):
-##                    if not inputs['SUBSTACK'] == None:
-##                        inputs['SUBSTACK'].run(context)
-##                if not child == None:
-##                    child.run(context)
+                    self.loopcount = -1
+                    if not child == None:
+                        child.run(context)
             else:
                 if not child == None:
                     child.do_run(context)
@@ -627,18 +687,37 @@ class Block:
                 else:
                     if not child == None:
                         child.run(context)
+        elif self.opcode == 'control_repeat_until':
+            # print(inputs)
+            if 'SUBSTACK' in inputs:
+                print(inputs['CONDITION'].do_run(context), child, context.return_block, self)
+                if not inputs['CONDITION'].do_run(context):
+                    if not inputs['SUBSTACK'] == None:
+                        c = context.clone(self)
+                        inputs['SUBSTACK'].do_run(c)
+                        return
+                    else:
+                        if not child == None:
+                            child.run(context)
+                else:
+                    if not child == None:
+                        child.run(context)
+            else:
+                if not child == None:
+                    child.do_run(context)
         
         else:
+            print(self.opcode)
             if not child == None:
                 child.do_run(context)
 
         if child == None and not context == self.sprite.defaultContext and not context.return_block == None:
-            #print(context, "===", self)
+            # print(context, "===", self, child)
             if context.force_step_on_return:
-                #print("RETURNED FROM", self, context)
+                # print("RETURNED FROM", self, context, "TO", context.parent)
                 self.sprite.project.callstack.append([context.return_block, context.parent])
             else:
-                #print("FORCED RETURNED FROM", self, context)
+                # print("FORCED RETURNED FROM", self, context, "TO", context.parent)
                 context.return_block.do_run(context.parent)
             #context.return_block.run(context.parent)
 
@@ -647,3 +726,10 @@ project.trigger_event("whenbroadcastreceived")
 project.trigger_event("whenflagclicked")
 project.run()
 #print(project.vars)
+
+# project.print()
+
+# for sprite in project.sprites:
+#     for block in sprite.blocks:
+#         print(block)
+#     print()
