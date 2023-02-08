@@ -1,7 +1,7 @@
 import json
 from zipfile import ZipFile
 from time import time
-from svg_to_png import *
+# from svg_to_png import *
 import math
 
 def sin(x):
@@ -25,16 +25,30 @@ working_dir = "working_dir"
 
 import os
 import sys
+
+
+if '-h' in sys.argv or '--help' in sys.argv:
+    sys.exit(f"""usage: {sys.executable} {os.path.basename(__file__)} <project> [options]
+Options:
+    -h, --help            Show help.
+    -n, --no-display      Run project without displaying a screen.
+    --headless            Run project without pygame (this will break some features).
+""")
+
 if len(sys.argv) > 1:
-    projectName = sys.argv[1].replace('.sb3', '')
+    projectName = sys.argv[1]
 else:
-    #projectName = "..\..\Downloads\Mirror Number Finder"
-    projectName = "Scratch Project"
-if len(sys.argv) > 2:
-    headless = sys.argv[2] == "-headless"
-else:
-    headless = False
-with ZipFile(projectName + '.sb3', 'r') as zipObj:
+    sys.exit('project file required')
+
+arguments = sys.argv[2:]
+
+no_display = '-n' in arguments or '--no-display' in arguments
+headless = '--headless' in arguments
+
+if no_display and headless:
+    sys.exit('\'--no-display\' option not allowed in headless mode')
+
+with ZipFile(projectName, 'r') as zipObj:
    zipObj.extractall(working_dir)
 f = open(working_dir + "/project.json")
 data = json.loads(f.read())
@@ -43,7 +57,8 @@ data = json.loads(f.read())
 doStdinEvents = True
 
 import os
-# os.environ["SDL_VIDEODRIVER"] = "dummy"
+if no_display:
+    os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 if not headless:
     import pygame
