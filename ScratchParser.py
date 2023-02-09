@@ -31,6 +31,7 @@ Options:
     -h, --help            Show help.
     -n, --no-display      Run project without displaying a screen.
     -d, --debug           Run project in debug mode.
+    -p, --pretty-print    Pretty print project code instead of running.
     --headless            Run project without pygame (this will break some features).
 """
 
@@ -47,7 +48,8 @@ arguments = sys.argv[2:]
 
 no_display = '-n' in arguments or '--no-display' in arguments
 debug = '-d' in arguments or '--debug' in arguments
-headless = '--headless' in arguments
+pretty_print = '-p' in arguments or '--pretty-print' in arguments
+headless = '--headless' in arguments or pretty_print
 
 if no_display and headless:
     sys.exit('\'--no-display\' option not allowed in headless mode')
@@ -185,7 +187,6 @@ class Costume:
 
 class Variable:
     def __init__(self, ID, data, project, spriteName):
-        print(data)
         self.ID = ID
         self.project = project
         self.value = data[1]
@@ -735,14 +736,9 @@ class Block:
             #context.return_block.run(context.parent)
 
 project = Project(data, working_dir + '/', headless, doStdinEvents)
-project.trigger_event("whenbroadcastreceived")
-project.trigger_event("whenflagclicked")
-project.run()
-#print(project.vars)
-
-# project.print()
-
-# for sprite in project.sprites:
-#     for block in sprite.blocks:
-#         print(block)
-#     print()
+if pretty_print:
+    project.print()
+else:
+    # project.trigger_event("whenbroadcastreceived")
+    project.trigger_event("whenflagclicked")
+    project.run()
