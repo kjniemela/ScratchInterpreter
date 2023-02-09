@@ -30,6 +30,7 @@ help_text = f"""usage: {sys.executable} {os.path.basename(__file__)} <project> [
 Options:
     -h, --help            Show help.
     -n, --no-display      Run project without displaying a screen.
+    -d, --debug           Run project in debug mode.
     --headless            Run project without pygame (this will break some features).
 """
 
@@ -45,6 +46,7 @@ else:
 arguments = sys.argv[2:]
 
 no_display = '-n' in arguments or '--no-display' in arguments
+debug = '-d' in arguments or '--debug' in arguments
 headless = '--headless' in arguments
 
 if no_display and headless:
@@ -55,7 +57,6 @@ with ZipFile(projectName, 'r') as zipObj:
 f = open(working_dir + "/project.json")
 data = json.loads(f.read())
 
-#headless = True
 doStdinEvents = True
 
 import os
@@ -87,11 +88,6 @@ class Project:
         
         for target in data['targets']:
             self.sprites.append(Sprite(target, self))
-##        for monitor in data['monitors']:
-##            if monitor['opcode'] == 'data_variable':
-##                self.vars.append(Variable(monitor, self))
-##            elif monitor['opcode'] == 'data_listcontents':
-##                self.vars.append(List(monitor, self))
     def print(self):
         # print('Variables:')
         # for var in self.vars:
@@ -252,7 +248,6 @@ class Sprite:
             for cost in data['costumes']:
                 self.costumes[cost['name']] = Costume(self, cost)
 
-        #if self.isStage:
         for ID in self.vars:
             project.vars.append(Variable(ID, self.vars[ID], self.project, self.name))
 
@@ -422,12 +417,13 @@ class Block:
     def do_run(self, context):
         child = self.sprite.get_block_by_ID(self.child)
         inputs = self.eval_inputs(context)
-        # print(self.ID, ' - ', self.opcode, ' - ', inputs, ' - ', child, ' - ', self.sprite,
-        # ' - ', None if context.return_block is None else context.return_block.ID)
-        # if self.sprite.project.headless:
-        #     input()
-        # else:
-        #     pygame.event.wait()
+        if debug:
+            print(self.ID, ' - ', self.opcode, ' - ', inputs, ' - ', child, ' - ', self.sprite,
+            ' - ', None if context.return_block is None else context.return_block.ID)
+            if self.sprite.project.headless:
+                input()
+            else:
+                pygame.event.wait()
         
         
         if self.opcode == 'operator_divide':
