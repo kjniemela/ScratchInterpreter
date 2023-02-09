@@ -273,6 +273,7 @@ class Sprite:
         self.lastDir = 90
         self.scale = 100 if self.isStage else data['size']
         self.lastScale = 100
+        self.rotation_style = None if self.isStage else data['rotationStyle']
 
         if not self.project.headless:
             self.spriteObject = pygame.sprite.Sprite()
@@ -306,6 +307,7 @@ class Sprite:
         clone.y = self.y
         clone.direction = self.direction
         clone.scale = self.scale
+        clone.rotation_style = self.rotation_style
         clone.set_costume_by_index(self.costume_index)
 
         for block in clone.blocks:
@@ -367,14 +369,23 @@ class Sprite:
         self.direction = math.degrees(math.atan2(dy, dx)) + 90
 
     def draw(self, screen):
-        if not self.direction == self.lastDir:
-            self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(self.direction-90))
+        if self.rotation_style == 'left-right' or self.rotation_style == 'don\'t rotate':
+            direction = 90
+        else:
+            direction = self.direction
+
+        if not direction == self.lastDir:
+            self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(direction-90))
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.spriteObject.image, self.spriteObject.rect, self.scale)
-            self.lastDir = self.direction
+            if self.rotation_style == 'left-right' and ((self.direction + 180) % 360) - 180 < 0:
+                self.spriteObject.image = pygame.transform.flip(self.spriteObject.image, True, True)
+            self.lastDir = direction
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
         if not self.scale == self.lastScale:
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.costume.image, self.rect, self.scale)
-            self.spriteObject.image, self.spriteObject.rect = self.rotate(self.spriteObject.image, self.spriteObject.rect, -(self.direction-90))
+            self.spriteObject.image, self.spriteObject.rect = self.rotate(self.spriteObject.image, self.spriteObject.rect, -(direction-90))
+            if self.rotation_style == 'left-right' and ((self.direction + 180) % 360) - 180 < 0:
+                self.spriteObject.image = pygame.transform.flip(self.spriteObject.image, True, True)
             self.lastScale = self.scale
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
         self.spriteObject.rect = self.spriteObject.image.get_rect(center=(self.x+240, 360-(self.y+180)))
@@ -624,6 +635,11 @@ class Block:
             return self.sprite.y
         elif self.opcode == 'motion_ifonedgebounce':
             self.sprite.bounce_on_edge()
+            if not child == None:
+                child.do_run(context)
+        elif self.opcode == 'motion_setrotationstyle':
+            print(inputs)
+            self.sprite.rotation_style = inputs['STYLE']
             if not child == None:
                 child.do_run(context)
 
