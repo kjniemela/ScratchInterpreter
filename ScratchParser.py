@@ -235,9 +235,10 @@ class Sprite:
         self.name = self.data['name']
         self.project = project
         self.blocks = []
-        self.costumes = {}
-        self.costume_names = []
+        self.costumes = []
+        self.costume_names = {}
         self.costume = None
+        self.costume_index = None
         self.procs = {}
         self.defaultContext = Context([])
         self.rect = None
@@ -252,8 +253,8 @@ class Sprite:
 
         if not self.project.headless:
             for cost in data['costumes']:
-                self.costumes[cost['name']] = Costume(self, cost)
-                self.costume_names.append(cost['name'])
+                self.costume_names[cost['name']] = len(self.costumes)
+                self.costumes.append(Costume(self, cost))
 
         if self.isStage:
             for ID in self.vars:
@@ -279,7 +280,7 @@ class Sprite:
 
             self.renderObject = pygame.sprite.RenderPlain(self.spriteObject)
 
-            self.set_costume(self.costumes[list(self.costumes.keys())[data['currentCostume']]])
+            self.set_costume_by_index(data['currentCostume'])
             
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(self.direction-90))
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.spriteObject.image, self.spriteObject.rect, self.scale)
@@ -305,13 +306,16 @@ class Sprite:
         clone.y = self.y
         clone.direction = self.direction
         clone.scale = self.scale
+        clone.set_costume_by_index(self.costume_index)
 
         for block in clone.blocks:
             if block.opcode == 'control_start_as_clone':
                 block.do_run(clone.defaultContext)
-    def set_costume(self, costume):
+    def set_costume_by_index(self, index):
+        costume = self.costumes[index]
         costume.apply_costume()
         self.costume = costume
+        self.costume_index = index
         self.lastScale = None
         self.lastDir = None
     def __repr__(self):
@@ -328,8 +332,8 @@ class Sprite:
             if var.ID == ID:
                 return var
         return self.project.get_var_by_ID(ID)
-    def get_costume_by_name(self, name):
-        return self.costumes[name]
+    def get_costume_index_by_name(self, name):
+        return self.costume_names[name]
     def trigger_event(self, event):
         for block in self.blocks:
             if block.opcode == "event_" + event:
@@ -567,7 +571,17 @@ class Block:
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_switchcostumeto':
-            self.sprite.set_costume(self.sprite.get_costume_by_name(self.sprite.get_block_by_ID(inputs['COSTUME']).do_run(context)))
+            if not self.sprite.project.headless:
+                self.sprite.set_costume_by_index(
+                    self.sprite.get_costume_index_by_name(self.sprite.get_block_by_ID(inputs['COSTUME']).do_run(context))
+                )
+            if not child == None:
+                child.run(context)
+        elif self.opcode == 'looks_nextcostume':
+            if not self.sprite.project.headless:
+                self.sprite.set_costume_by_index(
+                    (self.sprite.costume_index + 1) % len(self.sprite.costumes)
+                )
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_costume':
@@ -758,6 +772,9 @@ class Block:
                     child.do_run(context)
         elif self.opcode == 'control_create_clone_of':
             self.sprite.clone()
+            if not child == None:
+                child.run(context)
+        elif self.opcode == 'control_start_as_clone':
             if not child == None:
                 child.run(context)
         
