@@ -362,14 +362,14 @@ class Sprite:
                 return var
         return self.project.get_var_by_ID(ID)
     def get_costume_index_by_name(self, name):
-        return self.costume_names[name]
+        return self.costume_names.get(name, self.costume_index)
     def trigger_event(self, event):
         for block in self.blocks:
             if block.opcode == "event_" + event:
                 block.do_run(self.defaultContext)
     def touching(self, other):
-        print(self, other)
-        print(self.spriteObject.mask.overlap(other.spriteObject.mask, (int(abs(self.x-other.x)), int(abs(self.y-other.y)))))
+        if other is None:
+            return False
         return not self.spriteObject.mask.overlap(other.spriteObject.mask, (int(abs(self.x-other.x)), int(abs(self.y-other.y)))) == None
     def touching_edge(self):
         # TODO - actually make this
@@ -470,6 +470,8 @@ class Block:
                 else:
                     if type(self.inputs[i][1]) == str:
                         inputs[i] = self.inputs[i][1]
+                    elif self.inputs[i][1][0] == 11:
+                        inputs[i] = self.inputs[i][1][2]
                     else:
                         inputs[i] = self.inputs[i][1][1]
             if self.inputs[i][0] == 2:
@@ -517,6 +519,8 @@ class Block:
             return number(inputs['NUM1']) - number(inputs['NUM2'])
         elif self.opcode == 'operator_add':
             return number(inputs['NUM1']) + number(inputs['NUM2'])
+        elif self.opcode == 'operator_mod':
+            return number(inputs['NUM1']) % number(inputs['NUM2'])
         elif self.opcode == 'operator_round':
             return number(round(float(inputs['NUM'])))
         elif self.opcode == 'operator_mathop':
@@ -546,6 +550,10 @@ class Block:
                     return True
             else:
                 return True
+        elif self.opcode == 'operator_and':
+            return inputs['OPERAND1'].do_run(context) and inputs['OPERAND2'].do_run(context)
+        elif self.opcode == 'operator_or':
+            return inputs['OPERAND1'].do_run(context) or inputs['OPERAND2'].do_run(context)
         elif self.opcode == 'operator_length':
             return len(inputs['STRING'])
         elif self.opcode == 'operator_letter_of':
@@ -615,9 +623,18 @@ class Block:
                 child.run(context)
         elif self.opcode == 'looks_switchcostumeto':
             if not self.sprite.project.headless:
-                self.sprite.set_costume_by_index(
-                    self.sprite.get_costume_index_by_name(self.sprite.get_block_by_ID(inputs['COSTUME']).do_run(context))
-                )
+                if type(inputs['COSTUME']) == int:
+                    self.sprite.set_costume_by_index(inputs['COSTUME'])
+                else:
+                    block = self.sprite.get_block_by_ID(inputs['COSTUME'])
+                    if block is None:
+                        self.sprite.set_costume_by_index(
+                            self.sprite.get_costume_index_by_name(inputs['COSTUME'])
+                        )
+                    else:
+                        self.sprite.set_costume_by_index(
+                            self.sprite.get_costume_index_by_name(block.do_run(context))
+                        )
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_nextcostume':
@@ -726,7 +743,7 @@ class Block:
             for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(inputs['BROADCAST_INPUT']):
                 recvBlock.run(recvContext)
         elif self.opcode == 'event_whenbroadcastreceived':
-            project.add_message_reciever(project.sprites[0].data['broadcasts'][inputs['BROADCAST_OPTION']], self.sprite.get_block_by_ID(self.child), context)
+            project.add_message_reciever(inputs['BROADCAST_OPTION'], self.sprite.get_block_by_ID(self.child), context)
 
         elif self.opcode == 'control_wait':
             self.sprite.project.waitstack.append([self.sprite.get_block_by_ID(self.child), context, time()+float(inputs['DURATION'])])
@@ -833,7 +850,7 @@ class Block:
                 child.run(context)
         
         else:
-            # print("NOT IMPLEMENTED:", self.opcode)
+            print("NOT IMPLEMENTED:", self.opcode)
             if not child == None:
                 child.do_run(context)
 
@@ -851,6 +868,6 @@ project = Project(data, working_dir + '/', headless, doStdinEvents)
 if pretty_print:
     project.print()
 else:
-    # project.trigger_event("whenbroadcastreceived")
+    project.trigger_event("whenbroadcastreceived")
     project.trigger_event("whenflagclicked")
     project.run()
