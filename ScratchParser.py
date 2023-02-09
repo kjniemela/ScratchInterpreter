@@ -577,6 +577,9 @@ class Block:
                 # if len(pressed_keys) > 0:
                 #     print(pressed_keys, self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0])
                 return self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0] in pressed_keys
+        elif self.opcode == 'sensing_mousedown':
+            pygame.event.get()
+            return True in pygame.mouse.get_pressed()
         elif self.opcode == 'sensing_askandwait':
             if not inputs['QUESTION'] == "":
                 sys.stdout.write(inputs['QUESTION'])
