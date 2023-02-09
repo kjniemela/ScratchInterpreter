@@ -1,6 +1,7 @@
 import json
 from zipfile import ZipFile
 from time import time
+from random import randint
 # from svg_to_png import *
 import math
 
@@ -91,9 +92,9 @@ class Project:
         for target in data['targets']:
             self.sprites.append(Sprite(target, self))
     def print(self):
-        # print('Variables:')
-        # for var in self.vars:
-        #     print(f"  {var}: {self.vars[var]}")
+        print('Variables:')
+        for var in self.vars:
+            print(var)
         print('\nSprites:')
         for sprite in self.sprites:
             sprite.print()
@@ -142,6 +143,8 @@ class Project:
 
                     for sprite in self.sprites:
                         sprite.draw(self.screen)
+                        for clone in sprite.clones:
+                            clone.draw(self.screen)
                     pygame.display.flip()
             elif self.headless:
                 running = False
@@ -171,7 +174,7 @@ class Costume:
     def __init__(self, sprite, data):
         self.sprite = sprite
         self.data = data
-        print(data)
+        # print(data)
         self.path = self.sprite.project.path + data['assetId'] + "." + data['dataFormat']
         if data['dataFormat'] == 'png':
             self.image = pygame.image.load(self.path)
@@ -179,7 +182,7 @@ class Costume:
             # self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
             self.image = pygame.image.load('Scratch Project/7d1c7101d1bca69a8dfc608aa2683c52.png')
     def apply_costume(self):
-        print(self.path)
+        # print(self.path)
         self.sprite.lastDir = 90
         self.sprite.spriteObject.image = self.image
         self.sprite.spriteObject.rect = self.sprite.spriteObject.image.get_rect(center=(240, 180))
@@ -233,6 +236,7 @@ class Sprite:
         self.project = project
         self.blocks = []
         self.costumes = {}
+        self.costume_names = []
         self.costume = None
         self.procs = {}
         self.defaultContext = Context([])
@@ -248,9 +252,13 @@ class Sprite:
         if not self.project.headless:
             for cost in data['costumes']:
                 self.costumes[cost['name']] = Costume(self, cost)
+                self.costume_names.append(cost['name'])
 
         for ID in self.vars:
             project.vars.append(Variable(ID, self.vars[ID], self.project, self.name))
+
+        self.clones = []
+        self.parent = None
 
         self.x = 0
         self.y = 0
@@ -265,7 +273,7 @@ class Sprite:
 
             self.renderObject = pygame.sprite.RenderPlain(self.spriteObject)
 
-            self.set_costume(self.costumes[list(self.costumes.keys())[0]])
+            self.set_costume(self.costumes[list(self.costumes.keys())[data['currentCostume']]])
             
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(self.direction-90))
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.spriteObject.image, self.spriteObject.rect, self.scale)
@@ -277,6 +285,13 @@ class Sprite:
             if block.parent == None:
                 block.print(indent=2)
                 print()
+    def clone(self):
+        clone = Sprite(self.data, self.project)
+        clone.parent = self
+        self.clones.append(clone)
+        for block in clone.blocks:
+            if block.opcode == 'control_start_as_clone':
+                block.do_run(clone.defaultContext)
     def set_costume(self, costume):
         costume.apply_costume()
         self.costume = costume
@@ -367,15 +382,14 @@ class Block:
         if self.opcode == 'procedures_prototype':
             self.sprite.add_proc(self.data['mutation']['proccode'], self.data['parent'], json.loads(self.data['mutation']['argumentnames']))
     def __repr__(self):
-        return self.ID
-        return f"Block: {self.opcode} ({self.ID})"
+        return f"Block: {self.opcode}"
     def print(self, indent=0):
         child = self.sprite.get_block_by_ID(self.child)
         substack = None
         if 'SUBSTACK' in self.inputs:
             substack = self.sprite.get_block_by_ID(self.inputs['SUBSTACK'][1])
 
-        print(f"{'  '*indent}{self.opcode} ({self.ID})")
+        print(f"{'  '*indent}{self.opcode}")
         if substack is not None:
             substack.print(indent=indent+1)
         if child is not None:
@@ -385,6 +399,7 @@ class Block:
         # print(self, self.inputs, self.fields)
         for i in self.inputs:
             # print(i, self.inputs[i])
+            # TODO - properly deserialize all of this
             if self.inputs[i][0] == 1:
                 if self.inputs[i][1] == None:
                     inputs[i] = None
@@ -471,6 +486,8 @@ class Block:
             return len(inputs['STRING'])
         elif self.opcode == 'operator_letter_of':
             return inputs['STRING'][int(inputs['LETTER'])-1]
+        elif self.opcode == 'operator_random':
+            return randint(int(inputs['FROM']), int(inputs['TO']))
 
         elif self.opcode == 'sensing_keypressed':
             if self.sprite.project.headless:
@@ -704,7 +721,7 @@ class Block:
         elif self.opcode == 'control_repeat_until':
             # print(inputs)
             if 'SUBSTACK' in inputs:
-                print(inputs['CONDITION'].do_run(context), child, context.return_block, self)
+                # print(inputs['CONDITION'].do_run(context), child, context.return_block, self)
                 if not inputs['CONDITION'].do_run(context):
                     if not inputs['SUBSTACK'] == None:
                         c = context.clone(self)
@@ -719,9 +736,13 @@ class Block:
             else:
                 if not child == None:
                     child.do_run(context)
+        elif self.opcode == 'control_create_clone_of':
+            self.sprite.clone()
+            if not child == None:
+                child.run(context)
         
         else:
-            print(self.opcode)
+            print("NOT IMPLEMENTED:", self.opcode)
             if not child == None:
                 child.do_run(context)
 
