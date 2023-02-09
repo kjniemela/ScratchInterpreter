@@ -183,7 +183,7 @@ class Costume:
             self.image = pygame.image.load(self.path)
         elif data['dataFormat'] == 'svg':
             # self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
-            self.image = pygame.image.load('Scratch Project/7d1c7101d1bca69a8dfc608aa2683c52.png')
+            self.image = pygame.Surface((0, 0))
     def apply_costume(self):
         # print(self.path)
         self.sprite.lastDir = 90
@@ -243,6 +243,8 @@ class Sprite:
         self.costume = None
         self.costume_index = None
         self.procs = {}
+        self.proc_codes = {}
+        self.proc_defs = {}
         self.defaultContext = Context([])
         self.rect = None
         self.vars = self.data['variables']
@@ -252,7 +254,17 @@ class Sprite:
         for blockID in data['blocks']:
             b = data['blocks'][blockID]
             if type(b) == dict:
-                self.blocks.append(Block(self, blockID, b['parent'], b['next'], b['opcode'], b['inputs'], b['fields'], self.defaultContext, b))
+                self.blocks.append(Block(
+                    self,
+                    blockID,
+                    b.get('parent'),
+                    b.get('next'),
+                    b.get('opcode'),
+                    b.get('inputs'),
+                    b.get('fields'),
+                    self.defaultContext,
+                    b,
+                ))
 
         if not self.project.headless:
             for cost in data['costumes']:
@@ -325,8 +337,20 @@ class Sprite:
         self.lastDir = None
     def __repr__(self):
         return "Sprite<%s>" % (self.name)
-    def add_proc(self, proccode, block, varnames):
-        self.procs[proccode] = {'id': block, 'varnames': varnames}
+    def add_proc(self, prot_ID, proccode, block, varnames):
+        self.proc_codes[prot_ID] = proccode
+        if block is not None:
+            def_ID = block
+        elif prot_ID in self.proc_defs:
+            def_ID = self.proc_defs[prot_ID]
+        else:
+            def_ID = None
+        self.procs[proccode] = {'id': def_ID, 'varnames': varnames}
+    def add_proc_def(self, def_ID, prot_ID):
+        self.proc_defs[prot_ID] = def_ID
+        if prot_ID in self.proc_codes:
+            if self.procs[proccode]['id'] is None:
+                self.procs[proccode]['id'] = def_ID
     def get_block_by_ID(self, ID):
         for block in self.blocks:
             if block.ID == ID:
@@ -418,7 +442,9 @@ class Block:
         self.loopcount = -1
         self.context = defaultContext
         if self.opcode == 'procedures_prototype':
-            self.sprite.add_proc(self.data['mutation']['proccode'], self.data['parent'], json.loads(self.data['mutation']['argumentnames']))
+            self.sprite.add_proc(ID, self.data['mutation']['proccode'], self.data.get('parent'), json.loads(self.data['mutation']['argumentnames']))
+        elif self.opcode == 'procedures_definition':
+            self.sprite.add_proc_def(ID, inputs['custom_block'][1])
     def __repr__(self):
         return f"Block: {self.opcode}"
     def print(self, indent=0):
