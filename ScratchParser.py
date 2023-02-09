@@ -242,6 +242,7 @@ class Sprite:
         self.defaultContext = Context([])
         self.rect = None
         self.vars = self.data['variables']
+        self.local_vars = []
         self.lists = self.data['lists']
         self.isStage = data['isStage']
         for blockID in data['blocks']:
@@ -254,17 +255,22 @@ class Sprite:
                 self.costumes[cost['name']] = Costume(self, cost)
                 self.costume_names.append(cost['name'])
 
-        for ID in self.vars:
-            project.vars.append(Variable(ID, self.vars[ID], self.project, self.name))
+        if self.isStage:
+            for ID in self.vars:
+                project.vars.append(Variable(ID, self.vars[ID], self.project, self.name))
+        else:
+            for ID in self.vars:
+                self.local_vars.append(Variable(ID, self.vars[ID], self.project, self.name))
+
 
         self.clones = []
         self.parent = None
-
-        self.x = 0
-        self.y = 0
-        self.direction = 90
+        
+        self.x = 0 if self.isStage else data['x']
+        self.y = 0 if self.isStage else data['y']
+        self.direction = 0 if self.isStage else data['direction']
         self.lastDir = 90
-        self.scale = 100
+        self.scale = 100 if self.isStage else data['size']
         self.lastScale = 100
 
         if not self.project.headless:
@@ -286,9 +292,20 @@ class Sprite:
                 block.print(indent=2)
                 print()
     def clone(self):
-        clone = Sprite(self.data, self.project)
-        clone.parent = self
-        self.clones.append(clone)
+        parent = self if self.parent is None else self.parent
+
+        clone = Sprite(parent.data, parent.project)
+        clone.parent = parent
+        parent.clones.append(clone)
+
+        # Copy data to new clone
+        for i in range(len(self.local_vars)):
+            clone.local_vars[i].value = self.local_vars[i].value
+        clone.x = self.x
+        clone.y = self.y
+        clone.direction = self.direction
+        clone.scale = self.scale
+
         for block in clone.blocks:
             if block.opcode == 'control_start_as_clone':
                 block.do_run(clone.defaultContext)
@@ -306,8 +323,11 @@ class Sprite:
             if block.ID == ID:
                 return block
         return None
-    def get_local_var_by_ID(self, ID):
-        return None
+    def get_var_by_ID(self, ID):
+        for var in self.local_vars:
+            if var.ID == ID:
+                return var
+        return self.project.get_var_by_ID(ID)
     def get_costume_by_name(self, name):
         return self.costumes[name]
     def trigger_event(self, event):
@@ -412,7 +432,7 @@ class Block:
                 inputs[i] = self.sprite.get_block_by_ID(self.inputs[i][1])
             if self.inputs[i][0] == 3:
                 if self.inputs[i][1][0] == 12:
-                    inputs[i] = self.sprite.project.get_var_by_ID(self.inputs[i][1][2]).value
+                    inputs[i] = self.sprite.get_var_by_ID(self.inputs[i][1][2]).value
                 else:
                     inputs[i] = self.sprite.get_block_by_ID(self.inputs[i][1]).do_run(context)
         for field in self.fields:
@@ -594,27 +614,27 @@ class Block:
                 child.do_run(context)
 
         elif self.opcode == 'data_setvariableto':
-            # print("SET VAR %s TO %s" % (self.sprite.project.get_var_by_ID(inputs['VARIABLE']), inputs['VALUE']))
-            self.sprite.project.get_var_by_ID(inputs['VARIABLE']).value = inputs['VALUE']
+            # print("SET VAR %s TO %s" % (self.sprite.get_var_by_ID(inputs['VARIABLE']), inputs['VALUE']))
+            self.sprite.get_var_by_ID(inputs['VARIABLE']).value = inputs['VALUE']
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'data_changevariableby':
-            self.sprite.project.get_var_by_ID(inputs['VARIABLE']).value = number(self.sprite.project.get_var_by_ID(inputs['VARIABLE']).value) + number(inputs['VALUE'])
+            self.sprite.get_var_by_ID(inputs['VARIABLE']).value = number(self.sprite.get_var_by_ID(inputs['VARIABLE']).value) + number(inputs['VALUE'])
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'data_lengthoflist':
-            return len(self.sprite.project.get_var_by_ID(inputs['LIST']).value)
+            return len(self.sprite.get_var_by_ID(inputs['LIST']).value)
         elif self.opcode == 'data_itemoflist':
-            return self.sprite.project.get_var_by_ID(inputs['LIST']).value[int(inputs['INDEX'])-1]
+            return self.sprite.get_var_by_ID(inputs['LIST']).value[int(inputs['INDEX'])-1]
         elif self.opcode == 'data_deleteoflist':
             if inputs['INDEX'] == 'all':
-                self.sprite.project.get_var_by_ID(inputs['LIST']).value = []
+                self.sprite.get_var_by_ID(inputs['LIST']).value = []
             else:
-                del self.sprite.project.get_var_by_ID(inputs['LIST']).value[int(inputs['INDEX'])-1]
+                del self.sprite.get_var_by_ID(inputs['LIST']).value[int(inputs['INDEX'])-1]
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'data_addtolist':
-            self.sprite.project.get_var_by_ID(inputs['LIST']).value.append(str(inputs['ITEM']))
+            self.sprite.get_var_by_ID(inputs['LIST']).value.append(str(inputs['ITEM']))
             if not child == None:
                 child.do_run(context)
 
