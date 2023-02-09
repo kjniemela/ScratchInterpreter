@@ -269,7 +269,7 @@ class Sprite:
         
         self.x = 0 if self.isStage else data['x']
         self.y = 0 if self.isStage else data['y']
-        self.direction = 0 if self.isStage else data['direction']
+        self.direction = 90 if self.isStage else data['direction']
         self.lastDir = 90
         self.scale = 100 if self.isStage else data['size']
         self.lastScale = 100
@@ -621,6 +621,13 @@ class Block:
             self.sprite.direction = number(inputs['DIRECTION'])
             if not child == None:
                 child.do_run(context)
+        elif self.opcode == 'motion_pointtowards':
+            target = self.sprite.project.get_sprite_by_name(self.sprite.get_block_by_ID(inputs['TOWARDS']).do_run(context))
+            self.sprite.direction = -(math.degrees(math.atan2(target.y - self.sprite.y, target.x - self.sprite.x)) - 90)
+            if not child == None:
+                child.do_run(context)
+        elif self.opcode == 'motion_pointtowards_menu':
+            return inputs['TOWARDS']
         elif self.opcode == 'motion_turnright':
             self.sprite.direction += number(inputs['DEGREES'])
             if not child == None:
@@ -638,7 +645,6 @@ class Block:
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_setrotationstyle':
-            print(inputs)
             self.sprite.rotation_style = inputs['STYLE']
             if not child == None:
                 child.do_run(context)
@@ -725,7 +731,7 @@ class Block:
                 if not child == None:
                     child.do_run(context)
         elif self.opcode == 'control_if':
-            if inputs['CONDITION'].do_run(context):
+            if inputs['CONDITION'] is not None and inputs['CONDITION'].do_run(context):
                 if not inputs['SUBSTACK'] == None:
                     if child == None:
                         c = context.clone(context.return_block)
@@ -742,7 +748,7 @@ class Block:
                 if not child == None:
                     child.do_run(context)
         elif self.opcode == 'control_if_else':
-            if inputs['CONDITION'].do_run(context):
+            if inputs['CONDITION'] is not None and inputs['CONDITION'].do_run(context):
                 if not inputs['SUBSTACK'] == None:
                     if child == None:
                         c = context.clone(context.return_block)
@@ -772,7 +778,7 @@ class Block:
             # print(inputs)
             if 'SUBSTACK' in inputs:
                 # print(inputs['CONDITION'].do_run(context), child, context.return_block, self)
-                if not inputs['CONDITION'].do_run(context):
+                if inputs['CONDITION'] is not None and not inputs['CONDITION'].do_run(context):
                     if not inputs['SUBSTACK'] == None:
                         c = context.clone(self)
                         inputs['SUBSTACK'].do_run(c)
