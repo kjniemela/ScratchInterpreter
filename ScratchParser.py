@@ -33,6 +33,7 @@ Options:
     -n, --no-display      Run project without displaying a screen.
     -d, --debug           Run project in debug mode.
     -p, --pretty-print    Pretty print project code instead of running.
+    -s, --strict          Run in strict mode, meaning any use of unsupported blocks will cause a crash.
     --headless            Run project without pygame (this will break some features).
 """
 
@@ -50,6 +51,7 @@ arguments = sys.argv[2:]
 no_display = '-n' in arguments or '--no-display' in arguments
 debug = '-d' in arguments or '--debug' in arguments
 pretty_print = '-p' in arguments or '--pretty-print' in arguments
+strict_mode = '-s' in arguments or '--strict' in arguments
 headless = '--headless' in arguments or pretty_print
 
 if no_display and headless:
@@ -67,6 +69,7 @@ if no_display:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 if not headless:
+    os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
     import pygame
 
 class Project:
@@ -550,7 +553,10 @@ class Block:
         elif self.opcode == 'sensing_answer':
             return self.sprite.project.answer
         elif self.opcode == 'sensing_touchingcolor':
-            return False
+            if strict_mode:
+                sys.exit('unsupported opcode: sensing_touchingcolor')
+            else:
+                return False
         elif self.opcode == 'sensing_touchingobject':
             return self.sprite.get_block_by_ID(inputs['TOUCHINGOBJECTMENU']).do_run(context)
         elif self.opcode == 'sensing_touchingobjectmenu':
@@ -801,7 +807,7 @@ class Block:
                 child.run(context)
         
         else:
-            print("NOT IMPLEMENTED:", self.opcode)
+            # print("NOT IMPLEMENTED:", self.opcode)
             if not child == None:
                 child.do_run(context)
 
