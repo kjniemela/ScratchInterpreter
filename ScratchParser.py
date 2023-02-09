@@ -26,19 +26,21 @@ working_dir = "working_dir"
 import os
 import sys
 
-
-if '-h' in sys.argv or '--help' in sys.argv:
-    sys.exit(f"""usage: {sys.executable} {os.path.basename(__file__)} <project> [options]
+help_text = f"""usage: {sys.executable} {os.path.basename(__file__)} <project> [options]
 Options:
     -h, --help            Show help.
     -n, --no-display      Run project without displaying a screen.
     --headless            Run project without pygame (this will break some features).
-""")
+"""
+
+if '-h' in sys.argv or '--help' in sys.argv:
+    sys.exit(help_text)
 
 if len(sys.argv) > 1:
     projectName = sys.argv[1]
 else:
-    sys.exit('project file required')
+    sys.stderr.write('project path required\n')
+    sys.exit(help_text)
 
 arguments = sys.argv[2:]
 
