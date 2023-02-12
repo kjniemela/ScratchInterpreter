@@ -1,5 +1,5 @@
 from svglib.svglib import svg2rlg
-##from reportlab.graphics import renderPDF, renderPM
+from reportlab.graphics import renderPM
 ##from PIL import Image
 import subprocess
 import os.path
@@ -10,16 +10,18 @@ def svg_to_png(path, name):
 
     drawing = svg2rlg(path)
 
-    args = [
-        inkscape_path,
-        "--without-gui",
-        "-f", path,
-        "--export-area-page",
-        "-w", str(drawing.width*2),
-        "-h", str(drawing.height*2),
-        "--export-png=" + name+".png"
-    ]
-    subprocess.run(args)
+    # args = [
+    #     inkscape_path,
+    #     "--without-gui",
+    #     "-f", path,
+    #     "--export-area-page",
+    #     "-w", str(drawing.width*2),
+    #     "-h", str(drawing.height*2),
+    #     "--export-png=" + name+".png"
+    # ]
+    # subprocess.run(args)
+
+    renderPM.drawToFile(drawing, name+".png", fmt='PNG')
 
     return name+".png"
     

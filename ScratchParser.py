@@ -2,7 +2,7 @@ import json
 from zipfile import ZipFile
 from time import time
 from random import randint
-# from svg_to_png import *
+from svg_to_png import *
 import math
 
 def sin(x):
@@ -182,8 +182,8 @@ class Costume:
         if data['dataFormat'] == 'png':
             self.image = pygame.image.load(self.path)
         elif data['dataFormat'] == 'svg':
-            # self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
-            self.image = pygame.Surface((0, 0))
+            self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
+            # self.image = pygame.Surface((0, 0))
     def apply_costume(self):
         # print(self.path)
         self.sprite.lastDir = 90
@@ -288,6 +288,8 @@ class Sprite:
         self.lastDir = 90
         self.scale = 100 if self.isStage else data['size']
         self.lastScale = 100
+        self.ghostEffect = 0
+        self.visible = True
         self.rotation_style = None if self.isStage else data['rotationStyle']
 
         if not self.project.headless:
@@ -374,6 +376,16 @@ class Sprite:
     def touching_edge(self):
         # TODO - actually make this
         return not (-240 <= self.x <= 240 and -180 <= self.y <= 180)
+    def touching_mouse(self):
+        x, y = pygame.mouse.get_pos()
+        x = x - 240
+        y = 180 - y
+        try:
+            return self.spriteObject.mask.get_at(
+                (x - self.x + self.spriteObject.rect.width / 2, self.y - y + self.spriteObject.rect.height / 2)
+            ) == 1
+        except IndexError:
+            return False
     def bounce_on_edge(self):
         # TODO - actually make this
         touch_top = self.y > 180
@@ -396,6 +408,9 @@ class Sprite:
         self.direction = math.degrees(math.atan2(dy, dx)) + 90
 
     def draw(self, screen):
+        if not self.visible:
+            return
+
         if self.rotation_style == 'left-right' or self.rotation_style == 'don\'t rotate':
             direction = 90
         else:
@@ -415,6 +430,8 @@ class Sprite:
                 self.spriteObject.image = pygame.transform.flip(self.spriteObject.image, True, True)
             self.lastScale = self.scale
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
+        
+        self.spriteObject.image.set_alpha(255 - int(self.ghostEffect * 2.55))
         self.spriteObject.rect = self.spriteObject.image.get_rect(center=(self.x+240, 360-(self.y+180)))
         self.renderObject.draw(screen)
     def rescale(self, image, rect, scale):
@@ -578,8 +595,15 @@ class Block:
                 #     print(pressed_keys, self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0])
                 return self.sprite.get_block_by_ID(inputs['KEY_OPTION']).data['fields']['KEY_OPTION'][0] in pressed_keys
         elif self.opcode == 'sensing_mousedown':
-            pygame.event.get()
-            return True in pygame.mouse.get_pressed()
+            if self.sprite.project.headless:
+                return False
+            else:
+                pygame.event.get()
+                return True in pygame.mouse.get_pressed()
+        elif self.opcode == 'sensing_mousex':
+            return pygame.mouse.get_pos()[0] - 240
+        elif self.opcode == 'sensing_mousey':
+            return 180 - pygame.mouse.get_pos()[1]
         elif self.opcode == 'sensing_askandwait':
             if not inputs['QUESTION'] == "":
                 sys.stdout.write(inputs['QUESTION'])
@@ -599,6 +623,8 @@ class Block:
         elif self.opcode == 'sensing_touchingobjectmenu':
             if inputs['TOUCHINGOBJECTMENU'] == '_edge_':
                 return self.sprite.touching_edge()
+            elif inputs['TOUCHINGOBJECTMENU'] == '_mouse_':
+                return self.sprite.touching_mouse()
             elif inputs['TOUCHINGOBJECTMENU'] is None:
                 return False
             else:
@@ -649,6 +675,21 @@ class Block:
                 child.run(context)
         elif self.opcode == 'looks_costume':
             return inputs['COSTUME']
+        elif self.opcode == 'looks_seteffectto':
+            if inputs['EFFECT'] == 'ghost':
+                self.sprite.ghostEffect = inputs['VALUE']
+            else:
+                print('EFFECT NOT IMPLEMENTED:', inputs['EFFECT'])
+            if not child == None:
+                child.run(context)
+        elif self.opcode == 'looks_show':
+            self.sprite.visible = True
+            if not child == None:
+                child.run(context)
+        elif self.opcode == 'looks_hide':
+            self.sprite.visible = False
+            if not child == None:
+                child.run(context)
 
         elif self.opcode == 'motion_gotoxy':
             self.sprite.x, self.sprite.y = number(inputs['X']), number(inputs['Y'])
@@ -853,7 +894,9 @@ class Block:
                 child.run(context)
         
         else:
-            print("NOT IMPLEMENTED:", self.opcode)
+            if not self.opcode in not_implemented:
+                print("NOT IMPLEMENTED:", self.opcode)
+                not_implemented.append(self.opcode)
             if not child == None:
                 child.do_run(context)
 
@@ -868,6 +911,7 @@ class Block:
             #context.return_block.run(context.parent)
 
 project = Project(data, working_dir + '/', headless, doStdinEvents)
+not_implemented = []
 if pretty_print:
     project.print()
 else:
