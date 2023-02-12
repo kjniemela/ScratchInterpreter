@@ -186,10 +186,15 @@ class Costume:
             # self.image = pygame.Surface((0, 0))
     def apply_costume(self):
         # print(self.path)
-        self.sprite.lastDir = 90
-        self.sprite.spriteObject.image = self.image
-        self.sprite.spriteObject.rect = self.sprite.spriteObject.image.get_rect(center=(240, 180))
-        self.sprite.rect = self.sprite.spriteObject.rect
+        sprite = self.sprite
+        sprite.lastDir = 90
+        sprite.spriteObject.image = self.image
+        sprite.spriteObject.rect = self.sprite.spriteObject.image.get_rect(center=(240, 180))
+        sprite.rect = sprite.spriteObject.rect
+
+        sprite.spriteObject.image, sprite.spriteObject.rect = sprite.rotate(self.image, sprite.rect, -(sprite.direction-90))
+        sprite.spriteObject.image, sprite.spriteObject.rect = sprite.rescale(sprite.spriteObject.image, sprite.spriteObject.rect, sprite.scale)
+        sprite.spriteObject.mask = pygame.mask.from_surface(sprite.spriteObject.image)
 
 class Variable:
     def __init__(self, ID, data, project, spriteName):
@@ -649,7 +654,7 @@ class Block:
         elif self.opcode == 'looks_setsizeto':
             self.sprite.scale = number(inputs['SIZE'])
             if not child == None:
-                child.run(context)
+                child.do_run(context)
         elif self.opcode == 'looks_switchcostumeto':
             if not self.sprite.project.headless:
                 if type(inputs['COSTUME']) == int:
@@ -665,14 +670,14 @@ class Block:
                             self.sprite.get_costume_index_by_name(block.do_run(context))
                         )
             if not child == None:
-                child.run(context)
+                child.do_run(context)
         elif self.opcode == 'looks_nextcostume':
             if not self.sprite.project.headless:
                 self.sprite.set_costume_by_index(
                     (self.sprite.costume_index + 1) % len(self.sprite.costumes)
                 )
             if not child == None:
-                child.run(context)
+                child.do_run(context)
         elif self.opcode == 'looks_costume':
             return inputs['COSTUME']
         elif self.opcode == 'looks_seteffectto':
@@ -681,15 +686,15 @@ class Block:
             else:
                 print('EFFECT NOT IMPLEMENTED:', inputs['EFFECT'])
             if not child == None:
-                child.run(context)
+                child.do_run(context)
         elif self.opcode == 'looks_show':
             self.sprite.visible = True
             if not child == None:
-                child.run(context)
+                child.do_run(context)
         elif self.opcode == 'looks_hide':
             self.sprite.visible = False
             if not child == None:
-                child.run(context)
+                child.do_run(context)
 
         elif self.opcode == 'motion_gotoxy':
             self.sprite.x, self.sprite.y = number(inputs['X']), number(inputs['Y'])
@@ -786,11 +791,23 @@ class Block:
         elif self.opcode == 'event_broadcast':
             for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(inputs['BROADCAST_INPUT']):
                 recvBlock.run(recvContext)
+            if not child == None:
+                child.do_run(context)
         elif self.opcode == 'event_whenbroadcastreceived':
             project.add_message_reciever(inputs['BROADCAST_OPTION'], self.sprite.get_block_by_ID(self.child), context)
 
         elif self.opcode == 'control_wait':
             self.sprite.project.waitstack.append([self.sprite.get_block_by_ID(self.child), context, time()+float(inputs['DURATION'])])
+        elif self.opcode == 'control_wait_until':
+            if inputs['CONDITION'].do_run(context):
+                if not child == None:
+                    child.run(context)
+            else:
+                return self.run(context)
+        elif self.opcode == 'control_stop':
+            print(inputs)
+            if inputs['STOP_OPTION'] == 'this script':
+                return
         elif self.opcode == 'control_repeat':
             if 'SUBSTACK' in inputs:
                 if self.loopcount == -1:
