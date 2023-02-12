@@ -184,6 +184,8 @@ class Costume:
         elif data['dataFormat'] == 'svg':
             self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
             # self.image = pygame.Surface((0, 0))
+        self.offset = ((pygame.math.Vector2(self.image.get_size()) / 2) - pygame.math.Vector2(data['rotationCenterX'], data['rotationCenterY'])) / 2
+        print(self.offset, self.sprite)
     def apply_costume(self):
         # print(self.path)
         sprite = self.sprite
@@ -436,8 +438,9 @@ class Sprite:
             self.lastScale = self.scale
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
         
+        rotated_offset = self.costume.offset.rotate(direction-90)
+        self.spriteObject.rect = self.spriteObject.image.get_rect(center=(self.x+240, 360-(self.y+180))+rotated_offset)
         self.spriteObject.image.set_alpha(255 - int(self.ghostEffect * 2.55))
-        self.spriteObject.rect = self.spriteObject.image.get_rect(center=(self.x+240, 360-(self.y+180)))
         self.renderObject.draw(screen)
     def rescale(self, image, rect, scale):
         new_image = pygame.transform.scale(image, (round(rect.width*(scale/200)), round(rect.height*(scale/200))))
