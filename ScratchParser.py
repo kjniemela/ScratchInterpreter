@@ -385,7 +385,11 @@ class Sprite:
     def touching(self, other):
         if other is None:
             return False
-        return not self.spriteObject.mask.overlap(other.spriteObject.mask, (int(abs(self.x-other.x)), int(abs(self.y-other.y)))) == None
+        for clone in other.clones:
+            pos = (clone.spriteObject.rect.x - self.spriteObject.rect.x), (clone.spriteObject.rect.y - self.spriteObject.rect.y)
+            return not self.spriteObject.mask.overlap(clone.spriteObject.mask, pos) == None
+        pos = (other.spriteObject.rect.x - self.spriteObject.rect.x), (other.spriteObject.rect.y - self.spriteObject.rect.y)
+        return not self.spriteObject.mask.overlap(other.spriteObject.mask, pos) == None
     def touching_edge(self):
         # TODO - actually make this
         return not (-240 <= self.x <= 240 and -180 <= self.y <= 180)
@@ -898,6 +902,7 @@ class Block:
                 else:
                     c = recvContext.clone(child)
                     c.force_step_on_return = False
+                # TODO - the return block should only execute ONCE, NOT once for every reciever
                 recvBlock.run(c)
         elif self.opcode == 'event_whenbroadcastreceived':
             project.add_message_reciever(inputs['BROADCAST_OPTION'], self.sprite.get_block_by_ID(self.child), context)
