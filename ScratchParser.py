@@ -575,16 +575,20 @@ class Block:
             return number(round(number(n)))
         elif self.opcode == 'operator_mathop':
             n = try_eval(inputs['NUM'], context)
-            if inputs['OPERATOR'] == 'sin':
+            if inputs['OPERATOR'] == 'abs':
+                return abs(number(n))
+            elif inputs['OPERATOR'] == 'sin':
                 return sin(number(n))
-            if inputs['OPERATOR'] == 'cos':
+            elif inputs['OPERATOR'] == 'cos':
                 return cos(number(n))
-            if inputs['OPERATOR'] == 'tan':
+            elif inputs['OPERATOR'] == 'tan':
                 return tan(number(n))
-            if inputs['OPERATOR'] == 'ceiling':
+            elif inputs['OPERATOR'] == 'ceiling':
                 return math.ceil(number(n))
-            if inputs['OPERATOR'] == 'floor':
+            elif inputs['OPERATOR'] == 'floor':
                 return math.floor(number(n))
+            else:
+                raise
         elif self.opcode == 'operator_join':
             string1, string2 = try_eval(inputs['STRING1'], context), try_eval(inputs['STRING2'], context)
             return str(string1) + str(string2)
