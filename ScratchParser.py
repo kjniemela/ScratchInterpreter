@@ -546,8 +546,13 @@ class Block:
         child = self.sprite.get_block_by_ID(self.child)
         inputs = self.eval_inputs(context)
         if debug:
-            print(self.ID, ' - ', self.opcode, ' - ', inputs, ' - ', child, ' - ', self.sprite,
-            ' - ', None if context.return_block is None else context.return_block.ID)
+            print()
+            print('ID:', self.ID)
+            print('opcode:', self.opcode)
+            print('inputs:', inputs)
+            print('child:', f"{child} ({self.child})")
+            print('sprite:', self.sprite)
+            print('context return block:', None if context.return_block is None else context.return_block.ID)
             if self.sprite.project.headless:
                 input('step:')
             else:
@@ -863,7 +868,9 @@ class Block:
 
         elif self.opcode == 'procedures_call':
             inputs = {key: try_eval(inputs[key], context) for key in inputs}
-            context = Context(self.sprite.procs[self.data['mutation']['proccode']]['varnames'], context, list(inputs.values()), child)
+            return_block = child if child is not None else context.return_block
+            context = Context(self.sprite.procs[self.data['mutation']['proccode']]['varnames'], context, list(inputs.values()), return_block)
+            context.force_step_on_return = False
             self.sprite.get_block_by_ID(self.sprite.procs[self.data['mutation']['proccode']]['id']).do_run(context)
 
         elif self.opcode == 'event_whenkeypressed':
