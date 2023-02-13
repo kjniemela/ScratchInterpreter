@@ -253,7 +253,7 @@ class Sprite:
         self.proc_defs = {}
         self.defaultContext = Context([])
         self.rect = None
-        self.vars = self.data['variables']
+        self.vars = {**self.data['variables'], **self.data['lists']}
         self.local_vars = []
         self.lists = self.data['lists']
         self.isStage = data['isStage']
@@ -489,12 +489,18 @@ class Block:
     def print(self, indent=0):
         child = self.sprite.get_block_by_ID(self.child)
         substack = None
+        substack2 = None
         if 'SUBSTACK' in self.inputs:
             substack = self.sprite.get_block_by_ID(self.inputs['SUBSTACK'][1])
+        if 'SUBSTACK2' in self.inputs:
+            substack2 = self.sprite.get_block_by_ID(self.inputs['SUBSTACK2'][1])
 
-        print(f"{'  '*indent}{self.opcode}")
+        print(f"{'  '*indent}{self.opcode} {self.ID if debug else ''}")
         if substack is not None:
             substack.print(indent=indent+1)
+        if substack2 is not None:
+            print(f"{'  '*indent}else")
+            substack2.print(indent=indent+1)
         if child is not None:
             child.print(indent=indent)
     def eval_inputs(self, context):
@@ -523,7 +529,7 @@ class Block:
             # TODO - clean this mess up!
             if field == 'BROADCAST_OPTION':
                 inputs[field] = self.fields[field][1]
-            elif field == 'VARIABLE':
+            elif field == 'VARIABLE' or field == 'LIST':
                 inputs[field] = self.fields[field][1]
             elif len(self.fields[field]) > 1 and type(self.fields[field][0]) == int:
                 inputs[field] = self.fields[field][1]
@@ -541,7 +547,7 @@ class Block:
             print(self.ID, ' - ', self.opcode, ' - ', inputs, ' - ', child, ' - ', self.sprite,
             ' - ', None if context.return_block is None else context.return_block.ID)
             if self.sprite.project.headless:
-                input()
+                input('step:')
             else:
                 pygame.event.wait()
         
@@ -580,7 +586,8 @@ class Block:
             if inputs['OPERATOR'] == 'floor':
                 return math.floor(number(n))
         elif self.opcode == 'operator_join':
-            return str(inputs['STRING1']) + str(inputs['STRING2'])
+            string1, string2 = try_eval(inputs['STRING1'], context), try_eval(inputs['STRING2'], context)
+            return str(string1) + str(string2)
         elif self.opcode == 'operator_gt':
             a, b = try_eval(inputs['OPERAND1'], context), try_eval(inputs['OPERAND2'], context)
             try:
@@ -997,7 +1004,7 @@ class Block:
         
         else:
             if not self.opcode in not_implemented:
-                # print("NOT IMPLEMENTED:", self.opcode)
+                # print("NOT IMPLEMENTED:", self.opcode, child)
                 not_implemented.append(self.opcode)
             if not child == None:
                 child.do_run(context)
