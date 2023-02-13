@@ -454,6 +454,12 @@ class Sprite:
         rect = new_image.get_rect(center=rect.center)
         return new_image, rect
 
+def try_eval(block_or_value, context):
+    try:
+        return block_or_value.do_run(context)
+    except AttributeError:
+        return block_or_value
+
 class Block:
     def __init__(self, sprite, ID, parent, child, opcode, inputs, fields, defaultContext, data):
         self.sprite = sprite
@@ -485,7 +491,6 @@ class Block:
             child.print(indent=indent)
     def eval_inputs(self, context):
         inputs = {}
-        # print(self, self.inputs, self.fields)
         for i in self.inputs:
             # print(i, self.inputs[i])
             # TODO - properly deserialize all of this
@@ -505,7 +510,7 @@ class Block:
                 if self.inputs[i][1][0] == 12:
                     inputs[i] = self.sprite.get_var_by_ID(self.inputs[i][1][2]).value
                 else:
-                    inputs[i] = self.sprite.get_block_by_ID(self.inputs[i][1]).do_run(context)
+                    inputs[i] = self.sprite.get_block_by_ID(self.inputs[i][1])
         for field in self.fields:
             # TODO - clean this mess up!
             if field == 'BROADCAST_OPTION':
@@ -534,39 +539,58 @@ class Block:
         
         
         if self.opcode == 'operator_divide':
+            a, b = try_eval(inputs['NUM1'], context), try_eval(inputs['NUM2'], context)
             try:
-                return number(inputs['NUM1']) / number(inputs['NUM2'])
+                return number(a) / number(b)
             except ZeroDivisionError:
                 return 'Infinity'
         elif self.opcode == 'operator_multiply':
-            return number(inputs['NUM1']) * number(inputs['NUM2'])
+            a, b = try_eval(inputs['NUM1'], context), try_eval(inputs['NUM2'], context)
+            return number(a) * number(b)
         elif self.opcode == 'operator_subtract':
-            return number(inputs['NUM1']) - number(inputs['NUM2'])
+            a, b = try_eval(inputs['NUM1'], context), try_eval(inputs['NUM2'], context)
+            return number(a) - number(b)
         elif self.opcode == 'operator_add':
-            return number(inputs['NUM1']) + number(inputs['NUM2'])
+            a, b = try_eval(inputs['NUM1'], context), try_eval(inputs['NUM2'], context)
+            return number(a) + number(b)
         elif self.opcode == 'operator_mod':
-            return number(inputs['NUM1']) % number(inputs['NUM2'])
+            a, b = try_eval(inputs['NUM1'], context), try_eval(inputs['NUM2'], context)
+            return number(a) % number(b)
         elif self.opcode == 'operator_round':
-            return number(round(float(inputs['NUM'])))
+            n = try_eval(inputs['NUM'], context)
+            return number(round(number(n)))
         elif self.opcode == 'operator_mathop':
+            n = try_eval(inputs['NUM'], context)
             if inputs['OPERATOR'] == 'sin':
-                return sin(number(inputs['NUM']))
+                return sin(number(n))
             if inputs['OPERATOR'] == 'cos':
-                return cos(number(inputs['NUM']))
+                return cos(number(n))
             if inputs['OPERATOR'] == 'tan':
-                return tan(number(inputs['NUM']))
+                return tan(number(n))
             if inputs['OPERATOR'] == 'ceiling':
-                return math.ceil(number(inputs['NUM']))
+                return math.ceil(number(n))
             if inputs['OPERATOR'] == 'floor':
-                return math.floor(float(inputs['NUM']))
+                return math.floor(number(n))
         elif self.opcode == 'operator_join':
             return str(inputs['STRING1']) + str(inputs['STRING2'])
         elif self.opcode == 'operator_gt':
-            return float(inputs['OPERAND1']) > number(inputs['OPERAND2'])
+            a, b = try_eval(inputs['OPERAND1'], context), try_eval(inputs['OPERAND2'], context)
+            try:
+                return float(a) > float(b)
+            except ValueError:
+                return str(a).lower() > str(b).lower()
         elif self.opcode == 'operator_lt':
-            return float(inputs['OPERAND1']) < number(inputs['OPERAND2'])
+            a, b = try_eval(inputs['OPERAND1'], context), try_eval(inputs['OPERAND2'], context)
+            try:
+                return float(a) < float(b)
+            except ValueError:
+                return str(a).lower() < str(b).lower()
         elif self.opcode == 'operator_equals':
-            return str(inputs['OPERAND1']) == str(inputs['OPERAND2'])
+            a, b = try_eval(inputs['OPERAND1'], context), try_eval(inputs['OPERAND2'], context)
+            try:
+                return float(a) == float(b)
+            except ValueError:
+                return str(a).lower() == str(b).lower()
         elif self.opcode == 'operator_not':
             if 'OPERAND' in inputs:
                 if not inputs['OPERAND'] == None:
@@ -609,12 +633,19 @@ class Block:
                 pygame.event.get()
                 return True in pygame.mouse.get_pressed()
         elif self.opcode == 'sensing_mousex':
-            return pygame.mouse.get_pos()[0] - 240
+            if self.sprite.project.headless:
+                return 0
+            else:
+                return pygame.mouse.get_pos()[0] - 240
         elif self.opcode == 'sensing_mousey':
-            return 180 - pygame.mouse.get_pos()[1]
+            if self.sprite.project.headless:
+                return 0
+            else:
+                return 180 - pygame.mouse.get_pos()[1]
         elif self.opcode == 'sensing_askandwait':
-            if not inputs['QUESTION'] == "":
-                sys.stdout.write(inputs['QUESTION'])
+            question = try_eval(inputs['QUESTION'], context)
+            if not question == "":
+                sys.stdout.write(question)
                 sys.stdout.flush()
             self.sprite.project.answer = sys.stdin.readline().replace('\n', '')
             if not child == None:
@@ -627,7 +658,10 @@ class Block:
             else:
                 return False
         elif self.opcode == 'sensing_touchingobject':
-            return self.sprite.get_block_by_ID(inputs['TOUCHINGOBJECTMENU']).do_run(context)
+            if self.sprite.project.headless:
+                return False
+            else:
+                return self.sprite.get_block_by_ID(inputs['TOUCHINGOBJECTMENU']).do_run(context)
         elif self.opcode == 'sensing_touchingobjectmenu':
             if inputs['TOUCHINGOBJECTMENU'] == '_edge_':
                 return self.sprite.touching_edge()
@@ -636,37 +670,44 @@ class Block:
             elif inputs['TOUCHINGOBJECTMENU'] is None:
                 return False
             else:
-                return self.sprite.touching(self.sprite.project.get_sprite_by_name(inputs['TOUCHINGOBJECTMENU']))
+                sprite_name = try_eval(inputs['TOUCHINGOBJECTMENU'], context)
+                return self.sprite.touching(self.sprite.project.get_sprite_by_name(sprite_name))
 
         elif self.opcode == 'looks_sayforsecs':
-            sys.stdout.write(str(inputs['MESSAGE']) + '\n')
+            message = try_eval(inputs['MESSAGE'], context)
+            sys.stdout.write(str(message) + '\n')
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_say':
-            sys.stdout.write(str(inputs['MESSAGE']) + '\n')
+            message = try_eval(inputs['MESSAGE'], context)
+            sys.stdout.write(str(message) + '\n')
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_thinkforsecs':
-            sys.stderr.write(str(inputs['MESSAGE']) + '\n')
+            message = try_eval(inputs['MESSAGE'], context)
+            sys.stderr.write(str(message) + '\n')
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_think':
-            sys.stderr.write(str(inputs['MESSAGE']) + '\n')
+            message = try_eval(inputs['MESSAGE'], context)
+            sys.stderr.write(str(message) + '\n')
             if not child == None:
                 child.run(context)
         elif self.opcode == 'looks_setsizeto':
-            self.sprite.scale = number(inputs['SIZE'])
+            size = try_eval(inputs['SIZE'], context)
+            self.sprite.scale = number(size)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'looks_switchcostumeto':
             if not self.sprite.project.headless:
-                if type(inputs['COSTUME']) == int:
-                    self.sprite.set_costume_by_index(inputs['COSTUME'])
+                costume = try_eval(inputs['COSTUME'], context)
+                if type(costume) == int:
+                    self.sprite.set_costume_by_index(costume)
                 else:
-                    block = self.sprite.get_block_by_ID(inputs['COSTUME'])
+                    block = self.sprite.get_block_by_ID(costume)
                     if block is None:
                         self.sprite.set_costume_by_index(
-                            self.sprite.get_costume_index_by_name(inputs['COSTUME'])
+                            self.sprite.get_costume_index_by_name(costume)
                         )
                     else:
                         self.sprite.set_costume_by_index(
@@ -682,6 +723,7 @@ class Block:
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'looks_costume':
+            # TODO - is this expected? does it need to be evaled?
             return inputs['COSTUME']
         elif self.opcode == 'looks_seteffectto':
             if inputs['EFFECT'] == 'ghost':
@@ -700,29 +742,35 @@ class Block:
                 child.do_run(context)
 
         elif self.opcode == 'motion_gotoxy':
-            self.sprite.x, self.sprite.y = number(inputs['X']), number(inputs['Y'])
+            x, y = try_eval(inputs['X'], context), try_eval(inputs['Y'], context)
+            self.sprite.x, self.sprite.y = number(x), number(y)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_changexby':
-            self.sprite.x += number(inputs['DX'])
+            dx = try_eval(inputs['DX'], context)
+            self.sprite.x += number(dx)
             # print("X += %s" % (inputs['DX']))
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_changeyby':
-            self.sprite.y += number(inputs['DY'])
+            dy = try_eval(inputs['DY'], context)
+            self.sprite.y += number(dy)
             # print("Y += %s" % (inputs['DY']))
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_movesteps':
-            self.sprite.x += number(inputs['STEPS'])*sin(self.sprite.direction)
-            self.sprite.y += number(inputs['STEPS'])*cos(self.sprite.direction)
+            steps = try_eval(inputs['STEPS'], context)
+            self.sprite.x += number(steps)*sin(self.sprite.direction)
+            self.sprite.y += number(steps)*cos(self.sprite.direction)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_pointindirection':
-            self.sprite.direction = number(inputs['DIRECTION'])
+            direction = try_eval(inputs['DIRECTION'], context)
+            self.sprite.direction = number(direction)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_pointtowards':
+            # TODO - this should be able to be evaled?
             target = self.sprite.project.get_sprite_by_name(self.sprite.get_block_by_ID(inputs['TOWARDS']).do_run(context))
             self.sprite.direction = -(math.degrees(math.atan2(target.y - self.sprite.y, target.x - self.sprite.x)) - 90)
             if not child == None:
@@ -730,11 +778,13 @@ class Block:
         elif self.opcode == 'motion_pointtowards_menu':
             return inputs['TOWARDS']
         elif self.opcode == 'motion_turnright':
-            self.sprite.direction += number(inputs['DEGREES'])
+            degrees = try_eval(inputs['DEGREES'], context)
+            self.sprite.direction += number(degrees)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_turnleft':
-            self.sprite.direction -= number(inputs['DEGREES'])
+            degrees = try_eval(inputs['DEGREES'], context)
+            self.sprite.direction -= number(degrees)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'motion_xposition':
@@ -752,26 +802,32 @@ class Block:
 
         elif self.opcode == 'data_setvariableto':
             # print("SET VAR %s TO %s" % (self.sprite.get_var_by_ID(inputs['VARIABLE']), inputs['VALUE']))
-            self.sprite.get_var_by_ID(inputs['VARIABLE']).value = inputs['VALUE']
+            value = try_eval(inputs['VALUE'], context)
+            self.sprite.get_var_by_ID(inputs['VARIABLE']).value = value
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'data_changevariableby':
-            self.sprite.get_var_by_ID(inputs['VARIABLE']).value = number(self.sprite.get_var_by_ID(inputs['VARIABLE']).value) + number(inputs['VALUE'])
+            value = try_eval(inputs['VALUE'], context)
+            self.sprite.get_var_by_ID(inputs['VARIABLE']).value = number(self.sprite.get_var_by_ID(inputs['VARIABLE']).value) + number(value)
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'data_lengthoflist':
             return len(self.sprite.get_var_by_ID(inputs['LIST']).value)
         elif self.opcode == 'data_itemoflist':
-            return self.sprite.get_var_by_ID(inputs['LIST']).value[int(inputs['INDEX'])-1]
+            # TODO - how should we handle strings given as the index?
+            index = try_eval(inputs['INDEX'], context)
+            return self.sprite.get_var_by_ID(inputs['LIST']).value[int(index)-1]
         elif self.opcode == 'data_deleteoflist':
-            if inputs['INDEX'] == 'all':
+            index = try_eval(inputs['INDEX'], context)
+            if index == 'all':
                 self.sprite.get_var_by_ID(inputs['LIST']).value = []
             else:
-                del self.sprite.get_var_by_ID(inputs['LIST']).value[int(inputs['INDEX'])-1]
+                del self.sprite.get_var_by_ID(inputs['LIST']).value[int(index)-1]
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'data_addtolist':
-            self.sprite.get_var_by_ID(inputs['LIST']).value.append(str(inputs['ITEM']))
+            item = try_eval(inputs['ITEM'], context)
+            self.sprite.get_var_by_ID(inputs['LIST']).value.append(str(item))
             if not child == None:
                 child.do_run(context)
 
@@ -783,16 +839,18 @@ class Block:
             self.sprite.get_block_by_ID(self.sprite.procs[self.data['mutation']['proccode']]['id']).do_run(context)
 
         elif self.opcode == 'event_whenkeypressed':
+            key_option = try_eval(inputs['KEY_OPTION'], context)
             keys = pygame.key.get_pressed()
             pressed_keys = []
             for key in range(len(keys)):
                 if keys[key] == 1:
                     pressed_keys.append(pygame.key.name(key))
-            if inputs['KEY_OPTION'] in pressed_keys:
+            if key_option in pressed_keys:
                 if not child == None:
                     child.do_run(context)
         elif self.opcode == 'event_broadcast':
-            for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(inputs['BROADCAST_INPUT']):
+            boradcast_input = try_eval(inputs['BROADCAST_INPUT'], context)
+            for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(boradcast_input):
                 recvBlock.run(recvContext)
             if not child == None:
                 child.do_run(context)
@@ -800,9 +858,10 @@ class Block:
             project.add_message_reciever(inputs['BROADCAST_OPTION'], self.sprite.get_block_by_ID(self.child), context)
 
         elif self.opcode == 'control_wait':
-            self.sprite.project.waitstack.append([self.sprite.get_block_by_ID(self.child), context, time()+float(inputs['DURATION'])])
+            duration = try_eval(inputs['DURATION'], context)
+            self.sprite.project.waitstack.append([self.sprite.get_block_by_ID(self.child), context, time()+float(duration)])
         elif self.opcode == 'control_wait_until':
-            if inputs['CONDITION'].do_run(context):
+            if inputs['CONDITION'] is not None and inputs['CONDITION'].do_run(context):
                 if not child == None:
                     child.run(context)
             else:
@@ -812,9 +871,10 @@ class Block:
             if inputs['STOP_OPTION'] == 'this script':
                 return
         elif self.opcode == 'control_repeat':
+            times = try_eval(inputs['TIMES'], context)
             if 'SUBSTACK' in inputs:
                 if self.loopcount == -1:
-                    self.loopcount = int(inputs['TIMES'])
+                    self.loopcount = number(times)
                 # print("LOOP COUNT:", self.loopcount, self)
                 if self.loopcount > 0:
                     if not inputs['SUBSTACK'] == None:
@@ -906,6 +966,7 @@ class Block:
                 if not child == None:
                     child.do_run(context)
         elif self.opcode == 'control_create_clone_of':
+            print(inputs)
             self.sprite.clone()
             if not child == None:
                 child.run(context)
