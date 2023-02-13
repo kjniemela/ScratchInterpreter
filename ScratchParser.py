@@ -2,7 +2,6 @@ import json
 from zipfile import ZipFile
 from time import time
 from random import randint
-from svg_to_png import *
 import math
 
 def sin(x):
@@ -182,8 +181,11 @@ class Costume:
         if data['dataFormat'] == 'png':
             self.image = pygame.image.load(self.path)
         elif data['dataFormat'] == 'svg':
-            self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
-            # self.image = pygame.Surface((0, 0))
+            # self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
+            if strict_mode:
+                sys.exit('SVG costumes not supported')
+            else:
+                self.image = pygame.Surface((0, 0))
         self.offset = ((pygame.math.Vector2(self.image.get_size()) / 2) - pygame.math.Vector2(data['rotationCenterX'], data['rotationCenterY'])) / 2
     def apply_costume(self):
         # print(self.path)
