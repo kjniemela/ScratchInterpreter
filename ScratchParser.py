@@ -185,7 +185,6 @@ class Costume:
             self.image = pygame.image.load(svg_to_png(self.path, self.path[:-4]))
             # self.image = pygame.Surface((0, 0))
         self.offset = ((pygame.math.Vector2(self.image.get_size()) / 2) - pygame.math.Vector2(data['rotationCenterX'], data['rotationCenterY'])) / 2
-        print(self.offset, self.sprite)
     def apply_costume(self):
         # print(self.path)
         sprite = self.sprite
@@ -341,6 +340,8 @@ class Sprite:
             if block.opcode == 'control_start_as_clone':
                 block.do_run(clone.defaultContext)
     def set_costume_by_index(self, index):
+        # TODO - costume should not be applied until the beginning of the next frame,
+        # not in the middle of the current one.
         costume = self.costumes[index]
         costume.apply_costume()
         self.costume = costume
@@ -735,8 +736,8 @@ class Block:
         elif self.opcode == 'looks_seteffectto':
             if inputs['EFFECT'] == 'ghost':
                 self.sprite.ghostEffect = inputs['VALUE']
-            else:
-                print('EFFECT NOT IMPLEMENTED:', inputs['EFFECT'])
+            # else:
+            #     print('EFFECT NOT IMPLEMENTED:', inputs['EFFECT'])
             if not child == None:
                 child.do_run(context)
         elif self.opcode == 'looks_show':
@@ -856,11 +857,21 @@ class Block:
                 if not child == None:
                     child.do_run(context)
         elif self.opcode == 'event_broadcast':
-            boradcast_input = try_eval(inputs['BROADCAST_INPUT'], context)
-            for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(boradcast_input):
+            broadcast_input = try_eval(inputs['BROADCAST_INPUT'], context)
+            for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(broadcast_input):
                 recvBlock.run(recvContext)
             if not child == None:
                 child.do_run(context)
+        elif self.opcode == 'event_broadcastandwait':
+            broadcast_input = try_eval(inputs['BROADCAST_INPUT'], context)
+            for recvBlock, recvContext in self.sprite.project.get_recievers_by_message(broadcast_input):
+                if child == None:
+                    c = recvContext.clone(context.return_block)
+                    c.parent = context.parent
+                else:
+                    c = recvContext.clone(child)
+                    c.force_step_on_return = False
+                recvBlock.run(c)
         elif self.opcode == 'event_whenbroadcastreceived':
             project.add_message_reciever(inputs['BROADCAST_OPTION'], self.sprite.get_block_by_ID(self.child), context)
 
@@ -870,11 +881,11 @@ class Block:
         elif self.opcode == 'control_wait_until':
             if inputs['CONDITION'] is not None and inputs['CONDITION'].do_run(context):
                 if not child == None:
-                    child.run(context)
+                    child.do_run(context)
             else:
                 return self.run(context)
         elif self.opcode == 'control_stop':
-            print(inputs)
+            # TODO implement all stop options
             if inputs['STOP_OPTION'] == 'this script':
                 return
         elif self.opcode == 'control_repeat':
@@ -973,7 +984,7 @@ class Block:
                 if not child == None:
                     child.do_run(context)
         elif self.opcode == 'control_create_clone_of':
-            print(inputs)
+            # implement cloning other sprites
             self.sprite.clone()
             if not child == None:
                 child.run(context)
@@ -983,7 +994,7 @@ class Block:
         
         else:
             if not self.opcode in not_implemented:
-                print("NOT IMPLEMENTED:", self.opcode)
+                # print("NOT IMPLEMENTED:", self.opcode)
                 not_implemented.append(self.opcode)
             if not child == None:
                 child.do_run(context)
