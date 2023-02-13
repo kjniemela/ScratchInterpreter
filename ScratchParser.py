@@ -851,6 +851,10 @@ class Block:
             self.sprite.get_var_by_ID(inputs['LIST']).value.append(str(item))
             if not child == None:
                 child.do_run(context)
+        elif self.opcode == 'data_deletealloflist':
+            self.sprite.get_var_by_ID(inputs['LIST']).value = []
+            if not child == None:
+                child.do_run(context)
 
         elif self.opcode == 'argument_reporter_string_number':
             return context.vars[inputs['VALUE']]
@@ -1021,7 +1025,6 @@ class Block:
             else:
                 # print("FORCED RETURNED FROM", self, context, "TO", context.parent)
                 context.return_block.do_run(context.parent)
-            #context.return_block.run(context.parent)
 
 project = Project(data, working_dir + '/', headless, doStdinEvents)
 not_implemented = []
