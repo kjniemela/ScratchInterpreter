@@ -298,6 +298,7 @@ class Sprite:
         self.ghostEffect = 0
         self.visible = True
         self.rotation_style = None if self.isStage else data['rotationStyle']
+        self.rotated_offset = None
 
         if not self.project.headless:
             self.spriteObject = pygame.sprite.Sprite()
@@ -309,6 +310,8 @@ class Sprite:
             
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(self.direction-90))
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.spriteObject.image, self.spriteObject.rect, self.scale)
+            self.rotated_offset = self.costume.offset.rotate(self.direction-90)
+            self.rotated_offset *= self.scale / 100
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
     def print(self):
         print(f"  {self.name}")
@@ -389,7 +392,7 @@ class Sprite:
         y = 180 - y
         try:
             return self.spriteObject.mask.get_at(
-                (x - self.x + self.spriteObject.rect.width / 2, self.y - y + self.spriteObject.rect.height / 2)
+                (x - self.x + self.spriteObject.rect.width / 2, self.y - y + self.spriteObject.rect.height / 2) - self.rotated_offset
             ) == 1
         except IndexError:
             return False
@@ -426,20 +429,24 @@ class Sprite:
         if not direction == self.lastDir:
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.costume.image, self.rect, -(direction-90))
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.spriteObject.image, self.spriteObject.rect, self.scale)
+            self.rotated_offset = self.costume.offset.rotate(direction-90)
+            self.rotated_offset *= self.scale / 100
             if self.rotation_style == 'left-right' and ((self.direction + 180) % 360) - 180 < 0:
                 self.spriteObject.image = pygame.transform.flip(self.spriteObject.image, True, True)
             self.lastDir = direction
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
+        # TODO - should this be elif?
         if not self.scale == self.lastScale:
             self.spriteObject.image, self.spriteObject.rect = self.rescale(self.costume.image, self.rect, self.scale)
             self.spriteObject.image, self.spriteObject.rect = self.rotate(self.spriteObject.image, self.spriteObject.rect, -(direction-90))
+            self.rotated_offset = self.costume.offset.rotate(direction-90)
+            self.rotated_offset *= self.scale / 100
             if self.rotation_style == 'left-right' and ((self.direction + 180) % 360) - 180 < 0:
                 self.spriteObject.image = pygame.transform.flip(self.spriteObject.image, True, True)
             self.lastScale = self.scale
             self.spriteObject.mask = pygame.mask.from_surface(self.spriteObject.image)
         
-        rotated_offset = self.costume.offset.rotate(direction-90)
-        self.spriteObject.rect = self.spriteObject.image.get_rect(center=(self.x+240, 360-(self.y+180))+rotated_offset)
+        self.spriteObject.rect = self.spriteObject.image.get_rect(center=(self.x+240, 360-(self.y+180))+self.rotated_offset)
         self.spriteObject.image.set_alpha(255 - int(self.ghostEffect * 2.55))
         self.renderObject.draw(screen)
     def rescale(self, image, rect, scale):
