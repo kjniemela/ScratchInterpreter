@@ -612,9 +612,11 @@ class Block:
         elif self.opcode == 'operator_or':
             return inputs['OPERAND1'].do_run(context) or inputs['OPERAND2'].do_run(context)
         elif self.opcode == 'operator_length':
-            return len(inputs['STRING'])
+            string = try_eval(inputs['STRING'], context)
+            return len(string)
         elif self.opcode == 'operator_letter_of':
-            return inputs['STRING'][int(inputs['LETTER'])-1]
+            string, letter = try_eval(inputs['STRING'], context), try_eval(inputs['LETTER'], context)
+            return string[int(letter)-1]
         elif self.opcode == 'operator_random':
             return randint(int(inputs['FROM']), int(inputs['TO']))
 
@@ -843,6 +845,7 @@ class Block:
             return context.vars[inputs['VALUE']]
 
         elif self.opcode == 'procedures_call':
+            inputs = {key: try_eval(inputs[key], context) for key in inputs}
             context = Context(self.sprite.procs[self.data['mutation']['proccode']]['varnames'], context, list(inputs.values()), child)
             self.sprite.get_block_by_ID(self.sprite.procs[self.data['mutation']['proccode']]['id']).do_run(context)
 
