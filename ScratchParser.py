@@ -34,6 +34,7 @@ Options:
     -p, --pretty-print    Pretty print project code instead of running.
     -s, --strict          Run in strict mode, meaning any use of unsupported blocks will cause a crash.
     --headless            Run project without pygame (this will break some features).
+    -j, --json-only       Accept just the project.json file as input. Requires --headless to be set.
 """
 
 if '-h' in sys.argv or '--help' in sys.argv:
@@ -52,13 +53,19 @@ debug = '-d' in arguments or '--debug' in arguments
 pretty_print = '-p' in arguments or '--pretty-print' in arguments
 strict_mode = '-s' in arguments or '--strict' in arguments
 headless = '--headless' in arguments or pretty_print
+json_only = '-j' in arguments or '--json-only' in arguments
 
 if no_display and headless:
     sys.exit('\'--no-display\' option not allowed in headless mode')
+if json_only and not headless:
+    sys.exit('\'--json-only\' option only allowed in headless mode')
 
-with ZipFile(projectName, 'r') as zipObj:
-   zipObj.extractall(working_dir)
-f = open(working_dir + "/project.json")
+if json_only:
+    f = open(projectName)
+else:
+    with ZipFile(projectName, 'r') as zipObj:
+        zipObj.extractall(working_dir)
+        f = open(working_dir + "/project.json")
 data = json.loads(f.read())
 
 doStdinEvents = True
