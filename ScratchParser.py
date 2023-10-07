@@ -55,6 +55,20 @@ strict_mode = '-s' in arguments or '--strict' in arguments
 headless = '--headless' in arguments or pretty_print
 json_only = '-j' in arguments or '--json-only' in arguments
 
+if headless:
+    forbidden_opcodes = [
+        'sensing_keypressed',
+        'sensing_mousedown',
+        'sensing_mousex',
+        'sensing_mousey',
+        'sensing_touchingcolor',
+        'sensing_touchingobject',
+        'looks_switchcostumeto',
+        'looks_nextcostume',
+    ]
+else:
+    forbidden_opcodes = ['sensing_touchingcolor']
+
 if no_display and headless:
     sys.exit('\'--no-display\' option not allowed in headless mode')
 if json_only and not headless:
@@ -568,6 +582,9 @@ class Block:
                 input('step:')
             else:
                 pygame.event.wait()
+
+        if self.opcode in forbidden_opcodes and strict_mode:
+            sys.exit(f'unsupported opcode: {self.opcode}')
         
         
         if self.opcode == 'operator_divide':
@@ -692,10 +709,7 @@ class Block:
         elif self.opcode == 'sensing_answer':
             return self.sprite.project.answer
         elif self.opcode == 'sensing_touchingcolor':
-            if strict_mode:
-                sys.exit('unsupported opcode: sensing_touchingcolor')
-            else:
-                return False
+            return False
         elif self.opcode == 'sensing_touchingobject':
             if self.sprite.project.headless:
                 return False
